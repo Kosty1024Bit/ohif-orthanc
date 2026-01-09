@@ -1,0 +1,5 @@
+https://zenn.dev/uesho/scraps/a59893da768c9c
+
+https://github.com/radpointhq/orthanc-s3-storage
+https://github.com/ue-sho/ohif-orthanc
+https://github.com/orthanc-server/orthanc-setup-samples/tree/master/docker/minio
