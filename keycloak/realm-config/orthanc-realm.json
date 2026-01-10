@@ -1,0 +1,73 @@
+{
+  "realm": "orthanc-realm",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "orthanc-user",
+        "description": "Orthanc user with read/write access"
+      },
+      {
+        "name": "orthanc-admin",
+        "description": "Orthanc administrator with full access"
+      }
+    ]
+  },
+  "groups": [],
+  "clients": [
+    {
+      "clientId": "orthanc-client",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "client-secret",
+      "redirectUris": [
+        "http://localhost/*",
+        "http://localhost:80/*"
+      ],
+      "webOrigins": ["*"],
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false
+    }
+  ],
+  "users": [
+    {
+      "username": "orthanc-user",
+      "enabled": true,
+      "email": "user@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "user123"
+        }
+      ],
+      "realmRoles": ["orthanc-user"],
+      "clientRoles": {}
+    },
+    {
+      "username": "orthanc-admin",
+      "enabled": true,
+      "email": "admin@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123"
+        }
+      ],
+      "realmRoles": ["orthanc-admin"],
+      "clientRoles": {}
+    }
+  ]
+}
