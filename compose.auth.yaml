@@ -1,0 +1,142 @@
+services:
+  nginx:
+    build: nginx
+    restart: unless-stopped
+    ports:
+      - 80:80
+    depends_on:
+      - orthanc-container
+      - ohif
+
+  ohif:
+    build: ohif
+    # optional if you want to customize the OHIF configuration:
+    volumes:
+      - ./ohif/default-app-config.js:/usr/share/nginx/html/app-config.js
+    restart: unless-stopped
+    depends_on:
+      - orthanc-container
+
+  orthanc-container:
+    image: orthancteam/orthanc
+    restart: unless-stopped
+    ports:
+      - 8053:8042
+    volumes:
+      - ./orthanc-storage:/var/lib/orthanc/db/
+    environment:
+      ORTHANC__NAME: "OHIF in container"
+
+      DICOM_WEB_PLUGIN_ENABLED: "true"
+      ORTHANC__DICOM_WEB__PUBLIC_ROOT: "/orthanc-container/dicom-web/"
+
+      ORTHANC__ORTHANC_EXPLORER_2__UI_OPTIONS__ENABLE_OPEN_IN_OHIF_VIEWER_3: "true"
+      ORTHANC__ORTHANC_EXPLORER_2__UI_OPTIONS__OHIF_VIEWER_3_PUBLIC_ROOT: "http://localhost/ohif/"
+
+      ORTHANC__AUTHENTICATION_ENABLED: "false"
+      ORTHANC__POSTGRESQL: |
+        {
+          "Host": "orthanc-index"
+        }
+
+      VERBOSE_STARTUP: "true"
+
+      ORTHANC__AWS_S3_STORAGE__BUCKET_NAME: "ohif-orthanc-bucket"
+      ORTHANC__AWS_S3_STORAGE__REGION: "ap-northeast-1"
+      ORTHANC__AWS_S3_STORAGE__ACCESS_KEY: "minio"
+      ORTHANC__AWS_S3_STORAGE__SECRET_KEY: "miniopwd"
+      ORTHANC__AWS_S3_STORAGE__ENDPOINT: "http://minio:9000"
+      ORTHANC__AWS_S3_STORAGE__VIRTUAL_ADDRESSING: "false"
+      # ORTHANC__AWS_S3_STORAGE__HYBRID_MODE: "WriteToObjectStorage"
+      # ORTHANC__AWS_S3_STORAGE__HYBRID_MODE: "WriteToFileSystem"
+      ORTHANC__DICOM_SERVER_ENABLED: "false"
+      VERBOSE_ENABLED: "true"
+
+  orthanc-index:
+    image: postgres:15
+    command: >
+      postgres -c max_connections=200
+    restart: unless-stopped
+    ports: ["5432:5432"]
+    volumes: ["./orthanc-index:/var/lib/postgresql/data"]
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+  # docker exec -it *id* psql -U postgres
+
+  minio:
+      image: minio/minio:RELEASE.2024-04-06T05-26-02Z
+      ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web UI (Console)
+      environment:
+        MINIO_REGION: "ap-northeast-1"
+        MINIO_ROOT_USER: "minio"
+        MINIO_ROOT_PASSWORD: "miniopwd"
+      volumes:
+        - minio-storage:/data
+        - ./minio-storage:/data
+      entrypoint: sh
+      #command: -c 'mkdir -p /data/ohif-orthanc-bucket && /usr/bin/docker-entrypoint.sh server /data'
+      command: -c 'mkdir -p /data/ohif-orthanc-bucket && /usr/bin/docker-entrypoint.sh server /data --console-address ":9001"'
+
+# =====================
+# Keycloak (OIDC IdP)
+# =====================
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    #image: orthancteam/orthanc-auth-service
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: dev-mem
+    ports:
+      - "8080:8080"
+    #networks:
+    #  - test
+
+
+# ==================================
+# Orthanc Auth Service (OIDC proxy)
+# ==================================
+  orthanc-auth-service:
+    image: orthancteam/orthanc-auth-service
+    restart: unless-stopped
+    depends_on:
+      - keycloak
+      - orthanc-index
+    environment:
+      SECRET_KEY: "my-secret-key"
+      USERS: |
+        {
+          "share-user": "share-password",
+          "demo-script-user": "demo-script-password",
+          "orthanc-oe2-user": "orthanc-oe2-password"
+        }
+
+      # OIDC / Keycloak
+      AUTH_TYPE: oidc
+      OIDC_ISSUER: http://keycloak:8080/realms/orthanc
+      OIDC_CLIENT_ID: orthanc
+      OIDC_CLIENT_SECRET: "g9rVo5pe2gVrj7ScTatObBJKjjMxTEF0"
+      OIDC_SCOPES: openid profile email
+
+      # Orthanc upstream
+      ORTHANC_URL: http://orthanc-container:8042
+
+      # Authorization mapping
+      # Example: allow all authenticated users
+      AUTHORIZED_USERS: "*"
+    ports:
+      - "8000:8000"
+    #networks:
+      #- test
+
+
+networks:
+    test:
+
+volumes:
+  orthanc-storage:
+  orthanc-index:
+  minio-storage:
